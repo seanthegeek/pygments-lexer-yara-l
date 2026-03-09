@@ -1,6 +1,6 @@
 # pygments-lexer-yara-l
 
-[![PyPI link](https://img.shields.io/pypi/dm/pygments-lexer-yara-l)](https://pypi.org/project/pygments-lexer-yara-l/)
+[Package](https://img.shields.io/pypi/v/pygments-lexer-yara-l.svg)](https://pypi.org/project/pygments-lexer-yara-l/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pygments-lexer-yara-l?color=blue)](https://pypistats.org/packages/pygments-lexer-yara-l)
 
 A [Pygments](https://pygments.org/) plugin providing syntax highlighting for
