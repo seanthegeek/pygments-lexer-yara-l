@@ -8,6 +8,9 @@ A [Pygments](https://pygments.org/) plugin providing syntax highlighting for
 [YARA-L 2.0](https://cloud.google.com/chronicle/docs/detection/yara-l-2-0-overview),
 a language used to create detection rules for Google Security Operations (SecOps).
 
+<img width="1646" height="1393" alt="image" src="https://github.com/user-attachments/assets/9a401575-2f9b-49fc-815e-b9f326497141" />
+
+
 ## Features
 
 - Syntax highlighting for all YARA-L 2.0 constructs
