@@ -7,8 +7,10 @@ Package](https://img.shields.io/pypi/v/pygments-lexer-yara-l.svg)](https://pypi.
 A [Pygments](https://pygments.org/) plugin providing syntax highlighting for
 [YARA-L 2.0](https://cloud.google.com/chronicle/docs/detection/yara-l-2-0-overview),
 a language used to create detection rules for Google Security Operations (SecOps).
-
-<img width="1646" height="1393" alt="image" src="https://github.com/user-attachments/assets/9a401575-2f9b-49fc-815e-b9f326497141" />
+<p align="center">
+    <a href="https://raw.githubusercontent.com/seanthegeek/pygments-lexer-yara-l/refs/heads/main/pugments-lexer-yara-l-demo.webp">
+        <img src="https://raw.githubusercontent.com/seanthegeek/pygments-lexer-yara-l/refs/heads/main/pugments-lexer-yara-l-demo.webp" alt="Screenshot of the lexer with the Material Pygments theme"  style="max-height: 600; width: auto;"></a>
+</p>
 
 ## Features
 
