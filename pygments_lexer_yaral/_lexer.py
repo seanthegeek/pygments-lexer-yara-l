@@ -2,7 +2,7 @@
 
 import re
 
-from pygments.lexer import RegexLexer, words
+from pygments.lexer import RegexLexer, bygroups, words
 from pygments.token import (
     Comment,
     Keyword,
@@ -23,6 +23,12 @@ SECTION_KEYWORDS = (
     'outcome',
     'condition',
     'options',
+    'order',
+    'limit',
+    'stage',
+    'dedup',
+    'select',
+    'unselect',
 )
 
 # Operator/flow keywords
@@ -36,15 +42,16 @@ OPERATOR_KEYWORDS = (
     'after',
     'of',
     'in',
-    'window',
     'any',
     'all',
     'if',
     'regex',
     'cidr',
     'by',
-    'tumbling',
-    'sliding',
+    'asc',
+    'desc',
+    'AND',
+    'OR',
 )
 
 # Boolean and null constants
@@ -57,6 +64,7 @@ CONSTANTS = (
 # Built-in functions from YARA-L 2.0 documentation
 BUILTIN_FUNCTIONS = (
     'arrays.concat',
+    'arrays.contains',
     'arrays.index_to_float',
     'arrays.index_to_int',
     'arrays.index_to_str',
@@ -106,6 +114,28 @@ BUILTIN_FUNCTIONS = (
     'strings.to_upper',
     'strings.trim',
     'strings.url_decode',
+    'metrics.alert_event_name_count',
+    'metrics.auth_attempts_fail',
+    'metrics.auth_attempts_success',
+    'metrics.auth_attempts_total',
+    'metrics.dns_bytes_outbound',
+    'metrics.dns_queries_fail',
+    'metrics.dns_queries_success',
+    'metrics.dns_queries_total',
+    'metrics.file_executions_fail',
+    'metrics.file_executions_success',
+    'metrics.file_executions_total',
+    'metrics.http_queries_fail',
+    'metrics.http_queries_success',
+    'metrics.http_queries_total',
+    'metrics.network_bytes_inbound',
+    'metrics.network_bytes_outbound',
+    'metrics.network_bytes_total',
+    'metrics.resource_creation_success',
+    'metrics.resource_creation_total',
+    'metrics.resource_deletion_success',
+    'metrics.resource_read_fail',
+    'metrics.resource_read_success',
     'timestamp.as_unix_seconds',
     'timestamp.current_seconds',
     'timestamp.get_date',
@@ -136,6 +166,7 @@ AGGREGATE_FUNCTIONS = (
     'stddev',
     'array',
     'array_distinct',
+    'group',
 )
 
 
@@ -185,7 +216,15 @@ class YaraLLexer(RegexLexer):
             # Aggregate functions (plain names used as functions in outcome/condition)
             (words(AGGREGATE_FUNCTIONS, suffix=r'\b'), Name.Builtin),
 
-            # Event/placeholder/outcome variables: $name or #name
+            # Standalone UDM/graph field paths (no variable prefix): principal.hostname
+            # Must come after builtins so namespaced functions are matched first.
+            (r'[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)+', Name.Attribute),
+
+            # Variable with UDM/graph field path: $login.metadata.event_type
+            (r'([\$#][a-zA-Z_][a-zA-Z0-9_]*)((?:\.[a-zA-Z_]\w*)+)',
+             bygroups(Name.Variable, Name.Attribute)),
+
+            # Simple event/placeholder variables without path: $name or #name
             (r'[\$#][a-zA-Z_][a-zA-Z0-9_]*', Name.Variable),
 
             # Reference lists: %name
@@ -201,10 +240,11 @@ class YaraLLexer(RegexLexer):
             (r'!=|<=|>=|[=<>!]', Operator),
             (r'[+\-*/%|~^]', Operator),
 
-            # Punctuation
-            (r'[(){}\[\],;:.]', Punctuation),
+            # Punctuation (dot handled separately via UDM path rules above)
+            (r'[(){}\[\],;:]', Punctuation),
+            (r'\.', Punctuation),
 
-            # Identifiers (UDM field chains, plain names, etc.)
+            # Identifiers: plain names
             (r'[a-zA-Z_][a-zA-Z0-9_]*', Name),
         ],
 

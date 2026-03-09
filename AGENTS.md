@@ -70,11 +70,11 @@ make server
 
 | Construct | Pygments token |
 | --- | --- |
-| Section keywords (`rule`, `meta`, `events`, `match`, `outcome`, `condition`, `options`) | `Keyword` |
-| Operator keywords (`and`, `or`, `not`, `nocase`, `over`, `before`, `after`, `of`, `in`, `window`, `any`, `all`, `if`, `regex`, `cidr`, `by`, `tumbling`, `sliding`) | `Keyword.Pseudo` |
+| Section keywords (`rule`, `meta`, `events`, `match`, `outcome`, `condition`, `options`, `order`, `limit`, `stage`, `dedup`, `select`, `unselect`) | `Keyword` |
+| Operator keywords (`and`, `or`, `not`, `nocase`, `over`, `before`, `after`, `of`, `in`, `any`, `all`, `if`, `regex`, `cidr`, `by`, `asc`, `desc`, `AND`, `OR`) | `Keyword.Pseudo` |
 | Boolean/null constants (`true`, `false`, `null`) | `Keyword.Constant` |
-| Built-in namespaced functions (e.g. `strings.concat`, `re.regex`) | `Name.Builtin` |
-| Aggregate functions (`count`, `count_distinct`, `sum`, `avg`, `max`, `min`, `stddev`, `array`, `array_distinct`) | `Name.Builtin` |
+| Built-in namespaced functions (e.g. `strings.concat`, `re.regex`, `metrics.network_bytes_outbound`) | `Name.Builtin` |
+| Aggregate functions (`count`, `count_distinct`, `sum`, `avg`, `max`, `min`, `stddev`, `array`, `array_distinct`, `group`) | `Name.Builtin` |
 | UDM/graph field paths after a variable (`$e.principal.hostname`, `$e.metadata.event_type`) — the dotted path portion | `Name.Attribute` |
 | Standalone dotted field paths without a variable prefix (`principal.hostname`) | `Name.Attribute` |
 | Unrecognized identifiers | `Name` |
@@ -106,6 +106,18 @@ make server
 - Do **not** add `for` as a keyword (that is a YARA keyword, not YARA-L).
 - All module-level keyword/function/constant tuples are passed to
   `words(..., suffix=r'\b')` inline inside the `tokens` dict.
+
+### Items confirmed as hallucinations — do not re-add
+
+These were audited against all official docs and removed because they do not appear as code-level constructs in YARA-L 2.0:
+
+| Item | Category | Reason |
+| --- | --- | --- |
+| `tumbling` | Operator keyword | Tumbling windows use `$var by <duration>` syntax; `tumbling` never appears as a keyword in code |
+| `sliding` | Operator keyword | Sliding windows use `$var over <duration> after $event` syntax; `sliding` never appears as a keyword in code |
+| `window` | Operator keyword | `window` is only a function namespace prefix (`window.avg` etc.), not a standalone keyword |
+| `NOT` | Operator keyword (uppercase) | Appears only in English prose; all YARA-L code uses lowercase `not` |
+| `timestamp.subtract` | Built-in function | Appears only in a negative/invalid example in the metrics-functions docs, showing what **not** to write |
 
 ### Zero error-token requirement
 
@@ -190,3 +202,62 @@ YARA-L 2.0 is used in three contexts within Google SecOps, and the lexer must ha
 1. **Detection rules** — structured rules.
 2. **Search queries** — UDM search with statistical/aggregation keywords
 3. **Dashboard queries** — similar to search queries but with dashboard-specific functions  and a required `match` section.
+
+## Development
+
+Install dependencies:
+
+```sh
+pip install -e ".[dev,server]"
+```
+
+Run the test suite:
+
+```sh
+pytest
+```
+
+Start the visual preview server (available at http://localhost:8080):
+
+```sh
+python server.py
+```
+
+Run the terminal preview script:
+
+```sh
+python preview.py
+```
+
+Enable debug mode to print each token and its value:
+
+```sh
+DEBUG=1 python preview.py
+```
+
+### Iterative testing workflow
+
+1. Run `pytest -v` — this directly inspects every `Token.Error` in the lexer output and is the authoritative check.
+2. Optionally start `python server.py` for a visual review of token coloring (useful for spotting wrong token *types*, not error tokens).
+3. Fix any errors in `pygments_lexer_yaral/_lexer.py`.
+4. Repeat until `pytest` passes with zero error tokens.
+
+## Self-verification
+
+After making changes, verify correctness by **re-fetching the source documentation** and confirming every added element appears in the fetched HTML. Do not verify by re-reading your own changes — verify against the external source.
+
+### Constraints (applies to all work)
+
+- **No hallucinated syntax.** Every keyword, function, operator, and language construct in the lexer must come from the official documentation listed above.
+- **Follow Rouge conventions exactly.** Study existing lexers (especially JSON and SQL) for patterns. Don't invent novel approaches.
+- **`pytest` is the ground truth for error tokens.** The test suite calls `lexer.get_tokens(text)` directly and asserts that no token has type `Token.Error`. This is more reliable than scraping HTML.
+- **Iterate until clean.** Do not declare the task complete until both `pytest` passes AND the Error token count is zero for both demo and visual sample.
+
+## Changelog
+
+The changelog ([CHANGELOG.md](CHANGELOG.md)) follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). When updating the changelog:
+
+- Use `## [version] - YYYY-MM-DD` for release headings
+- Use `### Added`, `### Changed`, `### Removed` as second-level section headings
+- Use `#### Category name` as third-level headings within a section (e.g. `#### Commands`, `#### Evaluation functions`)
+- Ensure blank lines surround all headings to satisfy markdownlint

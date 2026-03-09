@@ -1,4 +1,3 @@
-import pytest
 from pygments.lexers import find_lexer_class_by_name, get_lexer_for_filename, get_lexer_for_mimetype
 from pygments.token import Error
 

@@ -1,42 +1,182 @@
-// YARA-L 2.0 Visual Sample
-// This file exercises every token type defined in the lexer.
+// YARA-L 2.0 Sample Rules
+// Realistic rules from https://github.com/chronicle/detection-rules (Apache 2.0, Google LLC)
+// plus synthetic coverage for all token types defined in the lexer.
 
 /* -----------------------------------------------------------------------
-   Block comment: section keywords, operator keywords, constants, operators
+   Realistic rules from the official Google chronicle/detection-rules repo
    ----------------------------------------------------------------------- */
 
-// ── Section keywords: rule, meta, events, match, outcome, condition, options ──
+rule geoip_user_login_from_multiple_countries {
 
-rule brute_force_login {
   meta:
-    author = "Security Team"
-    description = "Detects multiple failed user logins within 10-minute windows."
-    severity = "HIGH"
-    rule_version = "1.0"
-    yara_version = "YL2.0"
+    author = "Google Cloud Security"
+    description = "Detect multiple user logins from multiple states or countries using Chronicle GeoIP enrichment."
+    rule_id = "mr_3fa832e4-1ac0-42cd-9f0a-357d6b8fb12f"
+    rule_name = "GeoIP User Login From Multiple States Or Countries"
+    type = "alert"
+    data_source = "microsoft ad, azure ad, okta, aws cloudtrail, google scc"
+    tags = "geoip enrichment"
+    severity = "Low"
+    priority = "Low"
+
   events:
-    $e.metadata.event_type = "USER_LOGIN"
-    $e.security_result.action = "FAIL"
-    $user = $e.target.user.userid
-    $ip = $e.principal.ip
+    $login.metadata.event_type = "USER_LOGIN"
+    $login.security_result.action = "ALLOW"
+    $login.principal.ip_geo_artifact.location.country_or_region != ""
+    $login.principal.ip_geo_artifact.location.country_or_region = $country
+    $login.principal.ip_geo_artifact.location.state = $state
+    $login.metadata.product_name = $product
+    $login.target.user.userid = $user
+
   match:
-    $user over 10m
+    $user, $product over 1h
+
   outcome:
-    $failed_login_count = count($e.metadata.id)
-    $first_fail_time = min($e.metadata.event_timestamp.seconds)
-    $risk_score = 75
+    $risk_score = 35
+    $event_count = count_distinct($login.metadata.id)
+    $dc_state = count_distinct($login.principal.ip_geo_artifact.location.state)
+    $array_state = array_distinct($login.principal.ip_geo_artifact.location.state)
+    $dc_country = count_distinct($login.principal.ip_geo_artifact.location.country_or_region)
+    $array_country = array_distinct($login.principal.ip_geo_artifact.location.country_or_region)
+    $array_asn = array_distinct($login.principal.ip_geo_artifact.network.asn)
+    $principal_hostname = array_distinct($login.principal.hostname)
+    $principal_ip = array_distinct($login.principal.ip)
+    $target_hostname = array_distinct($login.target.hostname)
+    $target_user_userid = array_distinct($login.target.user.userid)
+
   condition:
-    #e >= 5
-  options:
-    allow_zero_values = true
+    #country >= 1 and #state >= 2
 }
 
-// ── Operator keywords: and, or, not, nocase, over, before, after, of, in ──
-// ── window, any, all, if, regex, cidr, by, tumbling, sliding              ──
+rule logins_from_terminated_employees {
 
-rule operator_keyword_demo {
   meta:
-    description = "Demonstrates operator keywords"
+    author = "Google Cloud Security"
+    description = "Allowed Logins from Terminated Employees"
+    rule_id = "mr_69178541-285b-45cb-b723-e2b5d88f22d3"
+    assumptions = "Requires a context data source such as AzureAD or Workday."
+    type = "alert"
+    tags = "user enrichment"
+    tactic = "TA0001"
+    technique = "T1078"
+    severity = "Medium"
+    priority = "Medium"
+
+  events:
+    $login.metadata.event_type = "USER_LOGIN"
+    $login.security_result.action = "ALLOW"
+    $login.target.user.userid = $user
+    $login.target.user.termination_date.seconds > 0
+    $login.target.user.termination_date.seconds < $login.metadata.event_timestamp.seconds
+
+  match:
+    $user over 1d
+
+  outcome:
+    $risk_score = 65
+    $event_count = count_distinct($login.metadata.id)
+    $employee_last_login = max($login.target.user.termination_date.seconds)
+    $total_distinct_ips = count_distinct($login.principal.ip)
+    $principal_hostname = array_distinct($login.principal.hostname)
+    $target_hostname = array_distinct($login.target.hostname)
+    $principal_user_userid = array_distinct($login.principal.user.userid)
+    //$target_user_userid = array_distinct($login.target.user.userid)
+    $target_url = array_distinct($login.target.url)
+
+  condition:
+    $login
+}
+
+rule dns_query_to_recently_created_domain {
+
+  meta:
+    author = "Google Cloud Security"
+    description = "DNS query to a recently created domain"
+    rule_id = "mr_a5cff3f1-8092-48a0-b4a3-f3f856299474"
+    type = "alert"
+    tags = "whois"
+    data_source = "microsoft sysmon"
+    severity = "Low"
+    priority = "Low"
+
+  events:
+    $dns.metadata.event_type = "NETWORK_DNS"
+    $dns.network.dns.questions.name = $dns_query
+    $dns.principal.user.userid = $user
+
+    // whois data provided by GCTI
+    $whois.graph.entity.hostname = $dns_query
+    $whois.graph.metadata.entity_type = "DOMAIN_NAME"
+    $whois.graph.metadata.vendor_name = "WHOIS"
+    $whois.graph.entity.domain.creation_time.seconds > 0
+    // domain was created in the last 30 days
+    2592000 > timestamp.current_seconds() - $whois.graph.entity.domain.creation_time.seconds
+
+  match:
+    $user over 1h
+
+  outcome:
+    $risk_score = max(35)
+    $event_count = count_distinct($dns.metadata.id)
+    $network_dns_questions_name = array_distinct($dns.network.dns.questions.name)
+    $network_dns_answers_data = array_distinct($dns.network.dns.answers.data)
+    $principal_ip = array_distinct($dns.principal.ip)
+    $target_ip = array_distinct($dns.target.ip)
+    $principal_process_pid = array_distinct($dns.principal.process.pid)
+    $principal_process_file_full_path = array_distinct($dns.principal.process.file.full_path)
+    $principal_process_command_line = array_distinct($dns.principal.process.command_line)
+    $principal_process_file_sha256 = array_distinct($dns.principal.process.file.sha256)
+
+  condition:
+    $dns and $whois
+}
+
+rule network_traffic_to_specific_country {
+
+  meta:
+    author = "Google Cloud Security"
+    description = "Identify network traffic based on target country"
+    rule_id = "mr_f1ab5184-771f-48dc-82e6-11a72632fcd5"
+    type = "alert"
+    tags = "geoip enrichment"
+    severity = "Low"
+    priority = "Low"
+
+  events:
+    $network.metadata.event_type = "NETWORK_CONNECTION"
+    // Specify a country of interest to monitor
+    $network.target.ip_geo_artifact.location.country_or_region = "France" nocase
+    $network.target.ip = $ip
+
+  match:
+    $ip over 30m
+
+  outcome:
+    $risk_score = max(35)
+    $event_count = count_distinct($network.metadata.id)
+    $principal_ip = array_distinct($network.principal.ip)
+    $principal_process_pid = array_distinct($network.principal.process.pid)
+    $principal_process_command_line = array_distinct($network.principal.process.command_line)
+    $principal_process_file_sha256 = array_distinct($network.principal.process.file.sha256)
+    $principal_process_file_full_path = array_distinct($network.principal.process.file.full_path)
+    $principal_process_product_specific_process_id = array_distinct($network.principal.process.product_specific_process_id)
+    $principal_process_parent_process_product_specific_process_id = array_distinct($network.principal.process.parent_process.product_specific_process_id)
+    $principal_user_userid = array_distinct($network.principal.user.userid)
+    $target_user_userid = array_distinct($network.target.user.userid)
+
+  condition:
+    $network
+}
+
+/* -----------------------------------------------------------------------
+   Synthetic coverage rules – exercise token types not in the rules above
+   ----------------------------------------------------------------------- */
+
+// ── Operator keywords: or, not, nocase, any, all, in, regex, cidr ──
+
+rule operator_keywords_coverage {
+  meta:
+    description = "Covers operator keyword tokens"
   events:
     $e.metadata.event_type = "NETWORK_DNS" or $e.metadata.event_type = "NETWORK_DHCP"
     not $e.principal.hostname = "internal-host" nocase
@@ -51,292 +191,259 @@ rule operator_keyword_demo {
     $e and #e > 0
 }
 
-// ── Tumbling and sliding window syntax ──
+// ── Time windows: by (tumbling), over…after (sliding) ──
 
-rule tumbling_window_demo {
+rule tumbling_window {
   meta:
-    description = "Tumbling window demo"
-  events:
-    $e.metadata.event_type = "USER_LOGIN"
-    $user = $e.principal.user.userid
-  match:
-    $user by 30m tumbling
-  condition:
-    #e > 10
-}
-
-rule sliding_window_demo {
-  meta:
-    description = "Sliding window anchored to a pivot event"
+    description = "Tumbling window: match $var by <duration>"
   events:
     $login.metadata.event_type = "USER_LOGIN"
     $file.metadata.event_type = "FILE_MODIFICATION"
     $login.principal.user.userid = $user
     $file.principal.user.userid = $user
   match:
-    $user over 1h after $login
+    $user by 30m
   condition:
     $login and $file
 }
 
-// ── Boolean / null constants: true, false, null ──
-
-rule constants_demo {
+rule sliding_window_after {
   meta:
-    description = "Demonstrates boolean and null constants"
+    description = "Covers sliding window with after keyword"
   events:
-    $e.metadata.event_type = "USER_LOGIN"
-    $e.principal.user.userid != null
-    $flag = true
-    $other = false
-  condition:
-    $e
-}
-
-// ── Built-in functions: arrays.* ──
-
-rule arrays_functions_demo {
-  meta:
-    description = "Demonstrates arrays.* functions"
-  events:
-    $e.metadata.event_type = "NETWORK_CONNECTION"
-  outcome:
-    $ip_count = arrays.length($e.principal.ip)
-    $max_port = arrays.max($e.principal.port)
-    $min_port = arrays.min($e.principal.port)
-    $size = arrays.size($e.principal.ip)
-    $joined = arrays.join_string($e.target.labels, ",")
-    $first_ip = arrays.index_to_str($e.principal.ip, 0)
-    $first_port_f = arrays.index_to_float($e.principal.port, 0)
-    $first_port_i = arrays.index_to_int($e.principal.port, 0)
-    $combined = arrays.concat($e.principal.labels, $e.target.labels)
-  condition:
-    $e
-}
-
-// ── Built-in functions: strings.* ──
-
-rule strings_functions_demo {
-  meta:
-    description = "Demonstrates strings.* functions"
-  events:
-    $e.metadata.event_type = "NETWORK_HTTP"
-    strings.contains($e.target.url, "malware")
-    strings.ends_with($e.target.url, ".exe")
-  outcome:
-    $lower = strings.to_lower($e.principal.hostname)
-    $upper = strings.to_upper($e.principal.hostname)
-    $trimmed = strings.trim($e.principal.hostname)
-    $ltrimmed = strings.ltrim($e.principal.hostname)
-    $rtrimmed = strings.rtrim($e.principal.hostname)
-    $reversed = strings.reverse($e.principal.hostname)
-    $domain = strings.extract_domain($e.target.url)
-    $host = strings.extract_hostname($e.target.url)
-    $decoded_url = strings.url_decode($e.target.url)
-    $decoded_hex = strings.from_hex($e.about.labels.value)
-    $decoded_b64 = strings.from_base64($e.about.labels.value)
-    $encoded_b64 = strings.base64_decode($e.about.labels.value)
-    $count = strings.count_substrings($e.target.url, "/")
-    $parts = strings.split($e.target.url, "/")
-    $first_nonempty = strings.coalesce($e.principal.hostname, $e.target.hostname)
-    $full = strings.concat($e.principal.hostname, ":", $e.target.url)
-  condition:
-    $e
-}
-
-// ── Built-in functions: re.* ──
-
-rule re_functions_demo {
-  meta:
-    description = "Demonstrates re.* functions"
-  events:
-    $e.metadata.event_type = "PROCESS_LAUNCH"
-    re.regex($e.principal.process.command_line, `powershell`) nocase
-  outcome:
-    $cmd_arg = re.capture($e.principal.process.command_line, `(?i)-enc\s+(\S+)`)
-    $all_args = re.capture_all($e.principal.process.command_line, `\-\w+`)
-    $sanitized = re.replace($e.principal.process.command_line, `\s+`, " ")
-  condition:
-    $e
-}
-
-// ── Built-in functions: math.* ──
-
-rule math_functions_demo {
-  meta:
-    description = "Demonstrates math.* functions"
-  events:
-    $e.metadata.event_type = "NETWORK_CONNECTION"
-    $bytes = $e.network.sent_bytes
-  outcome:
-    $abs_val = math.abs($bytes)
-    $ceil_val = math.ceil($e.network.session_duration.seconds)
-    $floor_val = math.floor($e.network.session_duration.seconds)
-    $log_val = math.log($bytes)
-    $sqrt_val = math.sqrt($bytes)
-    $round_val = math.round($e.network.session_duration.seconds)
-    $pow_val = math.pow($bytes, 2)
-    $rand_val = math.random()
-    $dist = math.geo_distance(37.7749, -122.4194, 40.7128, -74.0060)
-    $increasing = math.is_increasing($e.network.sent_bytes)
-  condition:
-    $e
-}
-
-// ── Built-in functions: net.*, hash.*, bytes.*, cast.*, timestamp.*, optimization.* ──
-
-rule misc_functions_demo {
-  meta:
-    description = "Demonstrates net, hash, bytes, cast, timestamp, optimization functions"
-  events:
-    $e.metadata.event_type = "NETWORK_CONNECTION"
-    net.ip_in_range_cidr($e.principal.ip, "192.0.2.0/24")
-  outcome:
-    $sha = hash.sha256($e.target.file.full_path)
-    $fp = hash.fingerprint2011($e.target.file.full_path)
-    $b64 = bytes.to_base64($e.target.file.content)
-    $as_int = cast.as_int($e.about.labels.value)
-    $as_float = cast.as_float($e.about.labels.value)
-    $as_str = cast.as_string($e.network.sent_bytes)
-    $as_bool = cast.as_bool($e.about.labels.value)
-    $unix_secs = timestamp.as_unix_seconds($e.metadata.event_timestamp)
-    $cur_secs = timestamp.current_seconds()
-    $now_ts = timestamp.now()
-    $date_str = timestamp.get_date($e.metadata.event_timestamp.seconds, "America/New_York")
-    $hour = timestamp.get_hour($e.metadata.event_timestamp.seconds, "UTC")
-    $minute = timestamp.get_minute($e.metadata.event_timestamp.seconds, "UTC")
-    $dow = timestamp.get_day_of_week($e.metadata.event_timestamp.seconds, "UTC")
-    $week = timestamp.get_week($e.metadata.event_timestamp.seconds, "UTC")
-    $ts_str = timestamp.get_timestamp($e.metadata.event_timestamp.seconds, "UTC", "%Y-%m-%dT%H:%M:%S")
-    $sampled = optimization.sample_rate($e.metadata.id, 10)
-  condition:
-    $e
-}
-
-// ── Aggregate functions: count, count_distinct, sum, avg, max, min, stddev ──
-// ── array, array_distinct ──
-
-rule aggregate_functions_demo {
-  meta:
-    description = "Demonstrates aggregate functions"
-  events:
-    $e.metadata.event_type = "USER_LOGIN"
-    $user = $e.principal.user.userid
-    $city = $e.principal.location.city
+    $login.metadata.event_type = "USER_LOGIN"
+    $exec.metadata.event_type = "PROCESS_LAUNCH"
+    $login.principal.user.userid = $user
+    $exec.principal.user.userid = $user
   match:
-    $user over 1h
-  outcome:
-    $event_count = count($e.metadata.id)
-    $distinct_cities = count_distinct($city)
-    $total_bytes = sum($e.network.sent_bytes)
-    $avg_bytes = avg($e.network.sent_bytes)
-    $max_bytes = max($e.network.sent_bytes)
-    $min_bytes = min($e.network.sent_bytes)
-    $dev_bytes = stddev($e.network.sent_bytes)
-    $city_array = array($city)
-    $city_distinct = array_distinct($city)
+    $user over 1h after $login
   condition:
-    #e >= 5 and $distinct_cities > 1
+    $login and $exec
 }
 
-// ── Numeric literals: integers and floats ──
+// ── Boolean / null constants, string and regex literals ──
 
-rule numeric_literals_demo {
+rule string_and_constant_coverage {
   meta:
-    description = "Demonstrates integer and float literals"
-  events:
-    $e.metadata.event_type = "NETWORK_CONNECTION"
-    $e.network.sent_bytes > 1048576
-    $e.network.session_duration.seconds >= 3600
-  outcome:
-    $score = 85
-    $threshold = 0.75
-    $big_num = 1000000
-    $small_float = 3.14159
-  condition:
-    #e > 0
-}
-
-// ── String literals: double-quoted with escape sequences, back-quoted raw ──
-
-rule string_literals_demo {
-  meta:
-    description = "Demonstrates string and regex literals"
+    description = "Covers string literals, escape sequences, backtick strings, regex literals, and constants"
     note = "Escape sequences: \n \t \r \\ \""
   events:
     $e.metadata.event_type = "PROCESS_LAUNCH"
     $e.principal.process.command_line = /cmd\.exe/
     re.regex($e.principal.process.command_line, `powershell\.exe`) nocase
     $e.principal.hostname != "trusted-host"
+    $e.principal.user.userid != null
+  outcome:
+    $flag = true
+    $other = false
+    $score = 0.75
   condition:
     $e
 }
 
-// ── Operators: comparison, arithmetic, bitwise ──
+// ── Built-in functions: re.*, math.*, net.*, hash.*, cast.*, timestamp.* ──
 
-rule operators_demo {
+rule builtin_functions_coverage {
   meta:
-    description = "Demonstrates various operators"
+    description = "Covers built-in function namespaces"
   events:
     $e.metadata.event_type = "NETWORK_CONNECTION"
-    $e.network.sent_bytes > 0
-    $e.network.sent_bytes >= 512
-    $e.network.sent_bytes < 1073741824
-    $e.network.sent_bytes <= 536870912
-    $e.network.sent_bytes != 0
-    $e.target.port = 443
+    net.ip_in_range_cidr($e.principal.ip, "192.0.2.0/24")
+    $e.network.sent_bytes > 1048576
   outcome:
-    $total = $e.network.sent_bytes + $e.network.received_bytes
-    $diff = $e.network.sent_bytes - $e.network.received_bytes
-    $product = $e.network.sent_bytes * 8
-    $ratio = $e.network.sent_bytes / 1024
+    $cmd_arg = re.capture($e.principal.process.command_line, `(?i)-enc\s+(\S+)`)
+    $sanitized = re.replace($e.principal.process.command_line, `\s+`, " ")
+    $sha = hash.sha256($e.target.file.full_path)
+    $b64 = bytes.to_base64($e.target.file.content)
+    $as_int = cast.as_int($e.about.labels.value)
+    $as_str = cast.as_string($e.network.sent_bytes)
+    $abs_val = math.abs($e.network.sent_bytes)
+    $log_val = math.log($e.network.sent_bytes)
+    $dist = math.geo_distance(37.7749, -122.4194, 40.7128, -74.0060)
+    $cur_secs = timestamp.current_seconds()
+    $hour = timestamp.get_hour($e.metadata.event_timestamp.seconds, "UTC")
+    $date_str = timestamp.get_date($e.metadata.event_timestamp.seconds, "America/New_York")
   condition:
     $e
 }
 
-// ── Variables: event variables ($e), placeholder variables ($user, #count) ──
-// ── Reference lists (%list_name) ──
+/* -----------------------------------------------------------------------
+   Dashboard queries – no rule{} wrapper; use order:/limit:/stage sections
+   Source: https://docs.cloud.google.com/chronicle/docs/reference/sample-yaral-for-native-dashboard
+   ----------------------------------------------------------------------- */
 
-rule variable_types_demo {
-  meta:
-    description = "Demonstrates all variable types"
-  events:
-    $login.metadata.event_type = "USER_LOGIN"
-    $login.security_result.action = "FAIL"
-    $user = $login.principal.user.userid
-    $ip = $login.principal.ip
-    not $login.principal.hostname in %internal_hosts
+// ── USER_LOGIN by status (bare field paths, order, limit) ──
+metadata.event_type = "USER_LOGIN"
+$security_result = security_result.action
+$security_result = "BLOCK" OR $security_result = "ALLOW"
+
+match:
+    $security_result
+
+outcome:
+    $event_count = count_distinct(metadata.id)
+
+// ── Successful sign-ins over time (order asc/desc) ──
+metadata.event_type = "USER_LOGIN"
+$security_result = security_result.action
+$security_result = "ALLOW"
+$date = timestamp.get_date(metadata.event_timestamp.seconds, "America/Los_Angeles")
+
+match:
+    $security_result, $date
+
+outcome:
+    $event_count = count_distinct(metadata.id)
+
+order:
+    $date desc
+
+// ── User sign-ins by country ──
+metadata.event_type = "USER_LOGIN"
+$country = principal.location.country_or_region
+$country != ""
+
+match:
+    $country
+
+outcome:
+    $event_count = count_distinct(metadata.id)
+
+order:
+    $event_count desc
+
+// ── Top 10 rule names by detection count (limit section) ──
+$rule_name = detection.detection.rule_name
+
+match:
+    $rule_name
+
+outcome:
+    $count = count_distinct(detection.id)
+
+order:
+    $count desc
+
+limit:
+    10
+
+// ── Top IPs across roles using group() ──
+$ip = group(detection.collection_elements.references.event.principal.ip, detection.collection_elements.references.event.target.ip, detection.collection_elements.references.event.src.ip)
+
+$ip != ""
+
+match:
+    $ip
+
+outcome:
+    $count = count(detection.id)
+
+order:
+    $count desc
+
+limit:
+    10
+
+// ── stage construct: mean time to close cases ──
+stage stage1 {
+  $case_id = case_history.case_response_platform_info.case_id
+
   match:
-    $user, $ip over 5m
+    $case_id
+
   outcome:
-    $risk_score = 40
-    $login_count = count($login.metadata.id)
+    $case_close_time = max(if(case_history.case_activity = "CLOSE_CASE", case_history.event_time.seconds, 0))
+    $status = array_distinct(case_history.case_activity)
+    $TTC = $case_close_time - min(case_history.event_time.seconds)
+
   condition:
-    $login and #login >= 3
+    arrays.contains($status, "CREATE_CASE") and arrays.contains($status, "CLOSE_CASE")
 }
 
-// ── Suppression window option ──
+outcome:
+  $case_count = count($stage1.case_id)
+  $MTTC = (math.round(avg($stage1.TTC) / 60))
 
-rule suppression_window_demo {
+// ── Ingestion metrics (AND uppercase, sum with if) ──
+$Log_Type = ingestion.log_type
+
+match:
+    $Log_Type
+
+outcome:
+    $Total_Size_Bytes = sum(if(ingestion.component = "Ingestion API", ingestion.log_volume, 0))
+    $Total_Logs = sum(if(ingestion.component = "Ingestion API", ingestion.log_count, 0))
+    $Normalized = sum(if(ingestion.component = "Normalizer" AND ingestion.state = "validated", ingestion.event_count, 0))
+    $Parse_Errors = sum(if(ingestion.component = "Normalizer" AND ingestion.state = "failed_parsing", ingestion.log_count, 0))
+
+order:
+    $Total_Size_Bytes desc
+
+// ── match with bare field path (no $ prefix) ──
+match:
+    case.status
+
+outcome:
+    $count = count(case.name)
+
+// ── match: field by time granularity ──
+$rule_author = rules.author
+
+match:
+    $rule_author by day
+
+outcome:
+    $count_of_rules = count(rules.name)
+
+order:
+    $count_of_rules desc
+
+// ── dedup: deduplicate results by a field ──
+metadata.event_type = "USER_LOGIN"
+$user = principal.user.userid
+
+match:
+    $user
+
+outcome:
+    $event_count = count_distinct(metadata.id)
+
+dedup:
+    principal.ip
+
+order:
+    $event_count desc
+
+// ── select / unselect: choose outcome columns to display ──
+metadata.event_type = "NETWORK_CONNECTION"
+$src = principal.ip
+$dst = target.ip
+
+match:
+    $src, $dst
+
+outcome:
+    $bytes = sum(network.sent_bytes)
+    $connections = count(metadata.id)
+
+select:
+    $src
+    $dst
+    $bytes
+
+unselect:
+    $connections
+
+order:
+    $bytes desc
+
+/* ----------------------------------------------------------------------- */
+
+// ── if() expression and suppression_window option ──
+
+rule if_expression_and_options {
   meta:
-    description = "Demonstrates suppression_window option"
-  events:
-    $e.metadata.event_type = "USER_LOGIN"
-    $hostname = $e.principal.hostname
-  outcome:
-    $suppression_key = $hostname
-    $risk_score = 30
-  options:
-    suppression_window = 1h
-  condition:
-    $e
-}
-
-// ── if() expression in outcome ──
-
-rule if_expression_demo {
-  meta:
-    description = "Demonstrates if() conditional expression"
+    description = "Covers if() expression and options section"
   events:
     $e.metadata.event_type = "USER_LOGIN"
     $user = $e.principal.user.userid
@@ -345,6 +452,47 @@ rule if_expression_demo {
   outcome:
     $count = count($e.metadata.id)
     $risk_score = if($count > 20, 90, if($count > 10, 60, 30))
+    $suppression_key = $user
+  options:
+    allow_zero_values = true
+    suppression_window = 1h
+  condition:
+    $e
+}
+
+// ── metrics.* functions (Risk Analytics) ──
+
+rule metrics_functions_demo {
+  meta:
+    description = "Demonstrates metrics.* functions for Risk Analytics rules"
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+    $e.principal.user.userid = $user
+  match:
+    $user over 7d
+  outcome:
+    $bytes_out = max(metrics.network_bytes_outbound(period:1d, window:30d))
+    $bytes_in  = max(metrics.network_bytes_inbound(period:1d, window:30d))
+    $bytes_tot = max(metrics.network_bytes_total(period:1d, window:30d))
+    $auth_ok   = max(metrics.auth_attempts_success(period:1d, window:30d))
+    $auth_fail = max(metrics.auth_attempts_fail(period:1d, window:30d))
+    $auth_tot  = max(metrics.auth_attempts_total(period:1d, window:30d))
+    $dns_ok    = max(metrics.dns_queries_success(period:1d, window:30d))
+    $dns_fail  = max(metrics.dns_queries_fail(period:1d, window:30d))
+    $dns_tot   = max(metrics.dns_queries_total(period:1d, window:30d))
+    $dns_bytes = max(metrics.dns_bytes_outbound(period:1d, window:30d))
+    $http_ok   = max(metrics.http_queries_success(period:1d, window:30d))
+    $http_fail = max(metrics.http_queries_fail(period:1d, window:30d))
+    $http_tot  = max(metrics.http_queries_total(period:1d, window:30d))
+    $file_ok   = max(metrics.file_executions_success(period:1d, window:30d))
+    $file_fail = max(metrics.file_executions_fail(period:1d, window:30d))
+    $file_tot  = max(metrics.file_executions_total(period:1d, window:30d))
+    $res_ok    = max(metrics.resource_creation_success(period:1d, window:30d))
+    $res_tot   = max(metrics.resource_creation_total(period:1d, window:30d))
+    $res_del   = max(metrics.resource_deletion_success(period:1d, window:30d))
+    $res_rfail = max(metrics.resource_read_fail(period:1d, window:30d))
+    $res_rok   = max(metrics.resource_read_success(period:1d, window:30d))
+    $alerts    = max(metrics.alert_event_name_count(period:1d, window:30d))
   condition:
     $e
 }

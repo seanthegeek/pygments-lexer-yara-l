@@ -1,13 +1,27 @@
-// Demo YARA-L rule: detect suspicious svchost execution from unusual location
-rule suspicious_svchost_execution {
+// Demo: Alert on network connections to known Tor exit node IP addresses.
+// Source: https://github.com/chronicle/detection-rules (Apache 2.0, Google LLC)
+rule gcti_tor_exit_nodes {
   meta:
-    author = "Sean Whalen"
-    description = "Detects svchost executed from an unusual directory"
-    severity = "HIGH"
+    author = "Google Cloud Security"
+    description = "Alert traffic destined for known Tor exit nodes."
+    tactic = "TA0011"
+    technique = "T1090.003"
+    severity = "High"
   events:
-    $e.metadata.event_type = "PROCESS_LAUNCH"
-    re.regex($e.principal.process.command_line, `\bsvchost(\.exe)?\b`) nocase
-    not re.regex($e.principal.process.command_line, `\\Windows\\System32\\`) nocase
+    $network.metadata.event_type = "NETWORK_CONNECTION"
+    $network.security_result.action = "ALLOW"
+    $network.target.ip = $ip
+    $gcti_feed.graph.entity.artifact.ip = $ip
+    $gcti_feed.graph.metadata.threat.threat_feed_name = "Tor Exit Nodes"
+    $gcti_feed.graph.metadata.product_name = "GCTI Feed"
+    $gcti_feed.graph.metadata.source_type = "GLOBAL_CONTEXT"
+  match:
+    $ip over 1h
+  outcome:
+    $risk_score = 85
+    $event_count = count_distinct($network.metadata.id)
+    $principal_ip = array_distinct($network.principal.ip)
+    $principal_user_userid = array_distinct($network.principal.user.userid)
   condition:
-    $e
+    $network and $gcti_feed
 }

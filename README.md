@@ -7,11 +7,12 @@ a language used to create detection rules for Google Security Operations (SecOps
 ## Features
 
 - Syntax highlighting for all YARA-L 2.0 constructs
-- Supports section keywords (`rule`, `meta`, `events`, `match`, `outcome`, `condition`, `options`)
-- Supports operator keywords (`and`, `or`, `not`, `nocase`, `over`, `before`, `after`, `of`, `in`, `window`, `any`, `all`, `if`, `regex`, `cidr`, `by`, `tumbling`, `sliding`)
+- Supports section keywords (`rule`, `meta`, `events`, `match`, `outcome`, `condition`, `options`, `order`, `limit`, `stage`, `dedup`, `select`, `unselect`)
+- Supports operator keywords (`and`, `or`, `not`, `nocase`, `over`, `before`, `after`, `of`, `in`, `any`, `all`, `if`, `regex`, `cidr`, `by`, `asc`, `desc`, `AND`, `OR`)
 - Supports boolean/null constants (`true`, `false`, `null`)
-- Highlights all built-in namespaced functions (`strings.*`, `re.*`, `math.*`, `net.*`, `timestamp.*`, `arrays.*`, `cast.*`, `hash.*`, `bytes.*`, `window.*`, `optimization.*`)
-- Highlights aggregate functions (`count`, `count_distinct`, `sum`, `avg`, `max`, `min`, `stddev`, `array`, `array_distinct`)
+- Highlights all built-in namespaced functions (`strings.*`, `re.*`, `math.*`, `net.*`, `timestamp.*`, `arrays.*`, `cast.*`, `hash.*`, `bytes.*`, `window.*`, `metrics.*`, `optimization.*`)
+- Highlights aggregate functions (`count`, `count_distinct`, `sum`, `avg`, `max`, `min`, `stddev`, `array`, `array_distinct`, `group`)
+- Highlights UDM/graph field paths (`$e.principal.hostname` → variable + attribute tokens)
 - Handles all string types: double-quoted strings with escape sequences, back-quoted raw strings, and regex literals
 - Handles line comments (`//`) and block comments (`/* */`)
 - Auto-detection heuristics based on common YARA-L patterns
