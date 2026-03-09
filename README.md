@@ -1,5 +1,8 @@
 # pygments-lexer-yara-l
 
+[![PyPI link](https://img.shields.io/pypi/dm/pygments-lexer-yara-l)](https://pypi.org/project/pygments-lexer-yara-l/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/parsedmarc?color=blue)](https://pypistats.org/packages/pygments-lexer-yara-l)
+
 A [Pygments](https://pygments.org/) plugin providing syntax highlighting for
 [YARA-L 2.0](https://cloud.google.com/chronicle/docs/detection/yara-l-2-0-overview),
 a language used to create detection rules for Google Security Operations (SecOps).
@@ -60,6 +63,92 @@ DEBUG=1 python preview.py   # Print each token and its type
 pip install 'pygments-lexer-yara-l[server]'
 python server.py
 # Then open http://localhost:8080
+```
+
+### MkDocs
+
+Install `pygments-lexer-yara-l` alongside MkDocs. The lexer is picked up
+automatically via the Pygments plugin entry point, so no extra configuration is
+required. Use the `yaral` language identifier in fenced code blocks:
+
+````markdown
+```yaral
+rule example {
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+  condition:
+    $e
+}
+```
+````
+
+### Sphinx
+
+Install `pygments-lexer-yara-l` in the same environment as Sphinx. The lexer
+registers itself automatically, so it is available in `code-block` directives
+without any additional configuration:
+
+```rst
+.. code-block:: yaral
+
+   rule example {
+     events:
+       $e.metadata.event_type = "NETWORK_CONNECTION"
+     condition:
+       $e
+   }
+```
+
+### Flask
+
+Use Pygments directly to render highlighted HTML and serve it from a Flask
+route:
+
+```python
+from flask import Flask, Markup
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments_lexer_yaral import YaraLLexer
+
+app = Flask(__name__)
+formatter = HtmlFormatter()
+
+@app.route("/highlight")
+def highlight_rule():
+    code = open("my_rule.yaral").read()
+    highlighted = highlight(code, YaraLLexer(), formatter)
+    css = f"<style>{formatter.get_style_defs('.highlight')}</style>"
+    return css + highlighted
+```
+
+### Django
+
+Add Pygments to your Django project and call it from a view or template tag:
+
+```python
+# views.py
+from django.utils.safestring import mark_safe
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments_lexer_yaral import YaraLLexer
+
+formatter = HtmlFormatter()
+
+def highlight_rule(request):
+    from django.shortcuts import render
+    code = open("my_rule.yaral").read()
+    highlighted = highlight(code, YaraLLexer(), formatter)
+    css = formatter.get_style_defs(".highlight")
+    return render(request, "highlight.html", {
+        "css": mark_safe(css),
+        "code": mark_safe(highlighted),
+    })
+```
+
+```html
+{# highlight.html #}
+<style>{{ css }}</style>
+{{ code }}
 ```
 
 ## Supported aliases

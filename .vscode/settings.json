@@ -4,9 +4,15 @@
     "MD040": false
   },
   "cSpell.words": [
+    "bygroups",
+    "dedup",
+    "Googlebot",
     "nocase",
+    "pygmentize",
+    "safestring",
     "staticmethod",
     "stddev",
+    "whois",
     "YARA",
     "yaral"
   ]
