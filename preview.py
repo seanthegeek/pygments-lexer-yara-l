@@ -25,4 +25,4 @@ if DEBUG:
     for index, tokentype, value in lexer.get_tokens_unprocessed(sample):
         print(f'{tokentype!s:<45} {value!r}')
 else:
-    print(highlight(sample, lexer, Terminal256Formatter(style=get_style_by_name('github-dark'))))
+    print(highlight(sample, lexer, Terminal256Formatter(style=get_style_by_name('material'))))
