@@ -75,6 +75,8 @@ make server
 | Boolean/null constants (`true`, `false`, `null`) | `Keyword.Constant` |
 | Built-in namespaced functions (e.g. `strings.concat`, `re.regex`) | `Name.Builtin` |
 | Aggregate functions (`count`, `count_distinct`, `sum`, `avg`, `max`, `min`, `stddev`, `array`, `array_distinct`) | `Name.Builtin` |
+| UDM/graph field paths after a variable (`$e.principal.hostname`, `$e.metadata.event_type`) — the dotted path portion | `Name.Attribute` |
+| Standalone dotted field paths without a variable prefix (`principal.hostname`) | `Name.Attribute` |
 | Unrecognized identifiers | `Name` |
 | Arithmetic/comparison operators | `Operator` |
 | Brackets, commas, semicolons, colons, dots, pipes | `Punctuation` |
@@ -94,9 +96,12 @@ make server
 - The `analyze_text` method **must** have the signature
   `def analyze_text(self, text: str) -> float:` — a regular instance method with
   `self` and a return type annotation. Do **not** use `@staticmethod`.
-- Built-in namespaced functions **must** be matched before plain identifiers so that
-  `strings.concat` is classified as `Name.Builtin` rather than two `Name` tokens
-  joined by a dot.
+- Built-in namespaced functions **must** be matched before UDM path patterns so that
+  `strings.concat` is classified as `Name.Builtin` rather than `Name.Attribute`.
+- UDM/graph field paths (`$e.principal.hostname`, `$whois.graph.entity.hostname`) are
+  tokenized with `bygroups`: the `$var` portion is `Name.Variable` and the dotted path
+  (e.g. `.principal.hostname`) is `Name.Attribute`. Standalone dotted paths without a
+  variable prefix also emit `Name.Attribute`.
 - IP address patterns must use plain `r'\.'` — do **not** add a negative lookahead.
 - Do **not** add `for` as a keyword (that is a YARA keyword, not YARA-L).
 - All module-level keyword/function/constant tuples are passed to
