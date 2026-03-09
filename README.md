@@ -9,7 +9,7 @@ A [Pygments](https://pygments.org/) plugin providing syntax highlighting for
 a language used to create detection rules for Google Security Operations (SecOps).
 <p align="center">
     <a href="https://raw.githubusercontent.com/seanthegeek/pygments-lexer-yara-l/refs/heads/main/pygments-lexer-yara-l-demo.webp">
-        <img src="https://raw.githubusercontent.com/seanthegeek/pygments-lexer-yara-l/refs/heads/main/pugments-lexer-yara-l-demo.webp" alt="Screenshot of the lexer with the Material Pygments theme"  style="max-height: 600; width: auto;"></a>
+        <img src="https://raw.githubusercontent.com/seanthegeek/pygments-lexer-yara-l/refs/heads/main/pygments-lexer-yara-l-demo.webp" alt="Screenshot of the lexer with the Material Pygments theme"  style="max-height: 600; width: auto;"></a>
 </p>
 
 ## Features
