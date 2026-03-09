@@ -1,0 +1,350 @@
+// YARA-L 2.0 Visual Sample
+// This file exercises every token type defined in the lexer.
+
+/* -----------------------------------------------------------------------
+   Block comment: section keywords, operator keywords, constants, operators
+   ----------------------------------------------------------------------- */
+
+// ── Section keywords: rule, meta, events, match, outcome, condition, options ──
+
+rule brute_force_login {
+  meta:
+    author = "Security Team"
+    description = "Detects multiple failed user logins within 10-minute windows."
+    severity = "HIGH"
+    rule_version = "1.0"
+    yara_version = "YL2.0"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $e.security_result.action = "FAIL"
+    $user = $e.target.user.userid
+    $ip = $e.principal.ip
+  match:
+    $user over 10m
+  outcome:
+    $failed_login_count = count($e.metadata.id)
+    $first_fail_time = min($e.metadata.event_timestamp.seconds)
+    $risk_score = 75
+  condition:
+    #e >= 5
+  options:
+    allow_zero_values = true
+}
+
+// ── Operator keywords: and, or, not, nocase, over, before, after, of, in ──
+// ── window, any, all, if, regex, cidr, by, tumbling, sliding              ──
+
+rule operator_keyword_demo {
+  meta:
+    description = "Demonstrates operator keywords"
+  events:
+    $e.metadata.event_type = "NETWORK_DNS" or $e.metadata.event_type = "NETWORK_DHCP"
+    not $e.principal.hostname = "internal-host" nocase
+    any $e.principal.ip != "10.0.0.1"
+    all $e.target.ip != "192.168.1.1"
+    $e.principal.ip in cidr %trusted_networks
+    $e.principal.hostname in regex %allowlist nocase
+    $e.principal.hostname in %string_reference_list
+  match:
+    $user over 5m
+  condition:
+    $e and #e > 0
+}
+
+// ── Tumbling and sliding window syntax ──
+
+rule tumbling_window_demo {
+  meta:
+    description = "Tumbling window demo"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $user = $e.principal.user.userid
+  match:
+    $user by 30m tumbling
+  condition:
+    #e > 10
+}
+
+rule sliding_window_demo {
+  meta:
+    description = "Sliding window anchored to a pivot event"
+  events:
+    $login.metadata.event_type = "USER_LOGIN"
+    $file.metadata.event_type = "FILE_MODIFICATION"
+    $login.principal.user.userid = $user
+    $file.principal.user.userid = $user
+  match:
+    $user over 1h after $login
+  condition:
+    $login and $file
+}
+
+// ── Boolean / null constants: true, false, null ──
+
+rule constants_demo {
+  meta:
+    description = "Demonstrates boolean and null constants"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $e.principal.user.userid != null
+    $flag = true
+    $other = false
+  condition:
+    $e
+}
+
+// ── Built-in functions: arrays.* ──
+
+rule arrays_functions_demo {
+  meta:
+    description = "Demonstrates arrays.* functions"
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+  outcome:
+    $ip_count = arrays.length($e.principal.ip)
+    $max_port = arrays.max($e.principal.port)
+    $min_port = arrays.min($e.principal.port)
+    $size = arrays.size($e.principal.ip)
+    $joined = arrays.join_string($e.target.labels, ",")
+    $first_ip = arrays.index_to_str($e.principal.ip, 0)
+    $first_port_f = arrays.index_to_float($e.principal.port, 0)
+    $first_port_i = arrays.index_to_int($e.principal.port, 0)
+    $combined = arrays.concat($e.principal.labels, $e.target.labels)
+  condition:
+    $e
+}
+
+// ── Built-in functions: strings.* ──
+
+rule strings_functions_demo {
+  meta:
+    description = "Demonstrates strings.* functions"
+  events:
+    $e.metadata.event_type = "NETWORK_HTTP"
+    strings.contains($e.target.url, "malware")
+    strings.ends_with($e.target.url, ".exe")
+  outcome:
+    $lower = strings.to_lower($e.principal.hostname)
+    $upper = strings.to_upper($e.principal.hostname)
+    $trimmed = strings.trim($e.principal.hostname)
+    $ltrimmed = strings.ltrim($e.principal.hostname)
+    $rtrimmed = strings.rtrim($e.principal.hostname)
+    $reversed = strings.reverse($e.principal.hostname)
+    $domain = strings.extract_domain($e.target.url)
+    $host = strings.extract_hostname($e.target.url)
+    $decoded_url = strings.url_decode($e.target.url)
+    $decoded_hex = strings.from_hex($e.about.labels.value)
+    $decoded_b64 = strings.from_base64($e.about.labels.value)
+    $encoded_b64 = strings.base64_decode($e.about.labels.value)
+    $count = strings.count_substrings($e.target.url, "/")
+    $parts = strings.split($e.target.url, "/")
+    $first_nonempty = strings.coalesce($e.principal.hostname, $e.target.hostname)
+    $full = strings.concat($e.principal.hostname, ":", $e.target.url)
+  condition:
+    $e
+}
+
+// ── Built-in functions: re.* ──
+
+rule re_functions_demo {
+  meta:
+    description = "Demonstrates re.* functions"
+  events:
+    $e.metadata.event_type = "PROCESS_LAUNCH"
+    re.regex($e.principal.process.command_line, `powershell`) nocase
+  outcome:
+    $cmd_arg = re.capture($e.principal.process.command_line, `(?i)-enc\s+(\S+)`)
+    $all_args = re.capture_all($e.principal.process.command_line, `\-\w+`)
+    $sanitized = re.replace($e.principal.process.command_line, `\s+`, " ")
+  condition:
+    $e
+}
+
+// ── Built-in functions: math.* ──
+
+rule math_functions_demo {
+  meta:
+    description = "Demonstrates math.* functions"
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+    $bytes = $e.network.sent_bytes
+  outcome:
+    $abs_val = math.abs($bytes)
+    $ceil_val = math.ceil($e.network.session_duration.seconds)
+    $floor_val = math.floor($e.network.session_duration.seconds)
+    $log_val = math.log($bytes)
+    $sqrt_val = math.sqrt($bytes)
+    $round_val = math.round($e.network.session_duration.seconds)
+    $pow_val = math.pow($bytes, 2)
+    $rand_val = math.random()
+    $dist = math.geo_distance(37.7749, -122.4194, 40.7128, -74.0060)
+    $increasing = math.is_increasing($e.network.sent_bytes)
+  condition:
+    $e
+}
+
+// ── Built-in functions: net.*, hash.*, bytes.*, cast.*, timestamp.*, optimization.* ──
+
+rule misc_functions_demo {
+  meta:
+    description = "Demonstrates net, hash, bytes, cast, timestamp, optimization functions"
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+    net.ip_in_range_cidr($e.principal.ip, "192.0.2.0/24")
+  outcome:
+    $sha = hash.sha256($e.target.file.full_path)
+    $fp = hash.fingerprint2011($e.target.file.full_path)
+    $b64 = bytes.to_base64($e.target.file.content)
+    $as_int = cast.as_int($e.about.labels.value)
+    $as_float = cast.as_float($e.about.labels.value)
+    $as_str = cast.as_string($e.network.sent_bytes)
+    $as_bool = cast.as_bool($e.about.labels.value)
+    $unix_secs = timestamp.as_unix_seconds($e.metadata.event_timestamp)
+    $cur_secs = timestamp.current_seconds()
+    $now_ts = timestamp.now()
+    $date_str = timestamp.get_date($e.metadata.event_timestamp.seconds, "America/New_York")
+    $hour = timestamp.get_hour($e.metadata.event_timestamp.seconds, "UTC")
+    $minute = timestamp.get_minute($e.metadata.event_timestamp.seconds, "UTC")
+    $dow = timestamp.get_day_of_week($e.metadata.event_timestamp.seconds, "UTC")
+    $week = timestamp.get_week($e.metadata.event_timestamp.seconds, "UTC")
+    $ts_str = timestamp.get_timestamp($e.metadata.event_timestamp.seconds, "UTC", "%Y-%m-%dT%H:%M:%S")
+    $sampled = optimization.sample_rate($e.metadata.id, 10)
+  condition:
+    $e
+}
+
+// ── Aggregate functions: count, count_distinct, sum, avg, max, min, stddev ──
+// ── array, array_distinct ──
+
+rule aggregate_functions_demo {
+  meta:
+    description = "Demonstrates aggregate functions"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $user = $e.principal.user.userid
+    $city = $e.principal.location.city
+  match:
+    $user over 1h
+  outcome:
+    $event_count = count($e.metadata.id)
+    $distinct_cities = count_distinct($city)
+    $total_bytes = sum($e.network.sent_bytes)
+    $avg_bytes = avg($e.network.sent_bytes)
+    $max_bytes = max($e.network.sent_bytes)
+    $min_bytes = min($e.network.sent_bytes)
+    $dev_bytes = stddev($e.network.sent_bytes)
+    $city_array = array($city)
+    $city_distinct = array_distinct($city)
+  condition:
+    #e >= 5 and $distinct_cities > 1
+}
+
+// ── Numeric literals: integers and floats ──
+
+rule numeric_literals_demo {
+  meta:
+    description = "Demonstrates integer and float literals"
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+    $e.network.sent_bytes > 1048576
+    $e.network.session_duration.seconds >= 3600
+  outcome:
+    $score = 85
+    $threshold = 0.75
+    $big_num = 1000000
+    $small_float = 3.14159
+  condition:
+    #e > 0
+}
+
+// ── String literals: double-quoted with escape sequences, back-quoted raw ──
+
+rule string_literals_demo {
+  meta:
+    description = "Demonstrates string and regex literals"
+    note = "Escape sequences: \n \t \r \\ \""
+  events:
+    $e.metadata.event_type = "PROCESS_LAUNCH"
+    $e.principal.process.command_line = /cmd\.exe/
+    re.regex($e.principal.process.command_line, `powershell\.exe`) nocase
+    $e.principal.hostname != "trusted-host"
+  condition:
+    $e
+}
+
+// ── Operators: comparison, arithmetic, bitwise ──
+
+rule operators_demo {
+  meta:
+    description = "Demonstrates various operators"
+  events:
+    $e.metadata.event_type = "NETWORK_CONNECTION"
+    $e.network.sent_bytes > 0
+    $e.network.sent_bytes >= 512
+    $e.network.sent_bytes < 1073741824
+    $e.network.sent_bytes <= 536870912
+    $e.network.sent_bytes != 0
+    $e.target.port = 443
+  outcome:
+    $total = $e.network.sent_bytes + $e.network.received_bytes
+    $diff = $e.network.sent_bytes - $e.network.received_bytes
+    $product = $e.network.sent_bytes * 8
+    $ratio = $e.network.sent_bytes / 1024
+  condition:
+    $e
+}
+
+// ── Variables: event variables ($e), placeholder variables ($user, #count) ──
+// ── Reference lists (%list_name) ──
+
+rule variable_types_demo {
+  meta:
+    description = "Demonstrates all variable types"
+  events:
+    $login.metadata.event_type = "USER_LOGIN"
+    $login.security_result.action = "FAIL"
+    $user = $login.principal.user.userid
+    $ip = $login.principal.ip
+    not $login.principal.hostname in %internal_hosts
+  match:
+    $user, $ip over 5m
+  outcome:
+    $risk_score = 40
+    $login_count = count($login.metadata.id)
+  condition:
+    $login and #login >= 3
+}
+
+// ── Suppression window option ──
+
+rule suppression_window_demo {
+  meta:
+    description = "Demonstrates suppression_window option"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $hostname = $e.principal.hostname
+  outcome:
+    $suppression_key = $hostname
+    $risk_score = 30
+  options:
+    suppression_window = 1h
+  condition:
+    $e
+}
+
+// ── if() expression in outcome ──
+
+rule if_expression_demo {
+  meta:
+    description = "Demonstrates if() conditional expression"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $user = $e.principal.user.userid
+  match:
+    $user over 10m
+  outcome:
+    $count = count($e.metadata.id)
+    $risk_score = if($count > 20, 90, if($count > 10, 60, 30))
+  condition:
+    $e
+}

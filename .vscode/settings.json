@@ -1,0 +1,13 @@
+{
+  "markdownlint.config": {
+    "MD024": { "siblings_only": true },
+    "MD040": false
+  },
+  "cSpell.words": [
+    "nocase",
+    "staticmethod",
+    "stddev",
+    "YARA",
+    "yaral"
+  ]
+}

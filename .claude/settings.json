@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -H 'User-Agent: Mozilla/5.0 \\(compatible; Googlebot/2.1; +http://www.google.com/bot.html\\)' 'https://docs.cloud.google.com/chronicle/docs/yara-l/getting-started')",
+      "Bash(curl -s -H 'User-Agent: Mozilla/5.0 \\(compatible; Googlebot/2.1; +http://www.google.com/bot.html\\)' 'https://docs.cloud.google.com/chronicle/docs/yara-l/meta-syntax')",
+      "Bash(curl -s -H 'User-Agent: Mozilla/5.0 \\(compatible; Googlebot/2.1; +http://www.google.com/bot.html\\)' 'https://docs.cloud.google.com/chronicle/docs/yara-l/functions')",
+      "Bash(curl -s -H 'User-Agent: Mozilla/5.0 \\(compatible; Googlebot/2.1; +http://www.google.com/bot.html\\)' 'https://docs.cloud.google.com/chronicle/docs/yara-l/expressions')",
+      "Bash(for url in 'https://docs.cloud.google.com/chronicle/docs/yara-l/events-syntax' 'https://docs.cloud.google.com/chronicle/docs/yara-l/match-syntax' 'https://docs.cloud.google.com/chronicle/docs/yara-l/outcome-syntax' 'https://docs.cloud.google.com/chronicle/docs/yara-l/condition-syntax' 'https://docs.cloud.google.com/chronicle/docs/yara-l/options-syntax' 'https://docs.cloud.google.com/chronicle/docs/yara-l/yara-l-2-0-examples')",
+      "Bash(do)",
+      "Bash(echo \"=== $url ===\")",
+      "Bash(curl -s -H 'User-Agent: Mozilla/5.0 \\(compatible; Googlebot/2.1; +http://www.google.com/bot.html\\)' \"$url\")",
+      "Bash(curl -s -H 'User-Agent: Mozilla/5.0 \\(compatible; Googlebot/2.1; +http://www.google.com/bot.html\\)' 'https://docs.cloud.google.com/chronicle/docs/yara-l/yara-l-2-0-examples')",
+      "Bash(printf '.PHONY: test server\\\\n\\\\ntest:\\\\n\\\\tpytest\\\\n\\\\nserver:\\\\n\\\\tpython server.py\\\\n\\\\n.DEFAULT_GOAL := test\\\\n' cat -A /home/sean/dev/pygments-lexer-yara-l/Makefile)",
+      "Bash(/home/sean/.venv/bin/python:*)",
+      "Bash(uv pip install flask)",
+      "Bash(python -c \"import flask; print\\(''flask ok''\\)\")"
+    ],
+    "additionalDirectories": [
+      "/home/sean/dev/pygments-lexer-yara-l"
+    ]
+  }
+}

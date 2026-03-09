@@ -1,0 +1,13 @@
+// Demo YARA-L rule: detect suspicious svchost execution from unusual location
+rule suspicious_svchost_execution {
+  meta:
+    author = "Sean Whalen"
+    description = "Detects svchost executed from an unusual directory"
+    severity = "HIGH"
+  events:
+    $e.metadata.event_type = "PROCESS_LAUNCH"
+    re.regex($e.principal.process.command_line, `\bsvchost(\.exe)?\b`) nocase
+    not re.regex($e.principal.process.command_line, `\\Windows\\System32\\`) nocase
+  condition:
+    $e
+}
