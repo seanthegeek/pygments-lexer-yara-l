@@ -23,14 +23,14 @@ SAMPLE_PATH = 'tests/examplefiles/sample.yaral'
 @app.get('/')
 def index():
     lexer     = YaraLLexer()
-    formatter = HtmlFormatter(style=get_style_by_name('github-dark'))
+    formatter = HtmlFormatter(style=get_style_by_name('material'))
     theme_css = formatter.get_style_defs('.highlight')
 
     demo   = open(DEMO_PATH).read()
     sample = open(SAMPLE_PATH).read()
 
-    highlighted_demo   = highlight(demo,   lexer, HtmlFormatter(style=get_style_by_name('github-dark')))
-    highlighted_sample = highlight(sample, lexer, HtmlFormatter(style=get_style_by_name('github-dark')))
+    highlighted_demo   = highlight(demo,   lexer, HtmlFormatter(style=get_style_by_name('material')))
+    highlighted_sample = highlight(sample, lexer, HtmlFormatter(style=get_style_by_name('material')))
 
     body = f"""<!DOCTYPE html>
 <html>

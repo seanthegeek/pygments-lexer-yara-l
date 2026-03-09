@@ -439,6 +439,20 @@ order:
 
 /* ----------------------------------------------------------------------- */
 
+// ── Struct / label field access: field["key"] ──
+
+rule struct_label_field_access {
+  meta:
+    description = "Covers bracket-indexed struct fields and ingestion label lookups"
+  events:
+    $e.metadata.event_type = "PROCESS_LAUNCH"
+    $e.udm.additional.fields["pod_name"] = "kube-scheduler"
+    $e.metadata.ingestion_labels["MetadataKeyDeletion"] = "startup-script"
+    $e.about.labels["env"] = "production"
+  condition:
+    $e
+}
+
 // ── if() expression and suppression_window option ──
 
 rule if_expression_and_options {
