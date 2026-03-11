@@ -156,6 +156,12 @@ def highlight_rule(request):
 {{ code }}
 ```
 
+### Colors
+
+The lexer tells Pygments how to identify tokens. Rouge wraps each token in a `span` tag
+with a `class` related to that token type. If you want to change how the tokens are
+highlighted, change themes or add custom CSS.
+
 ## Supported aliases
 
 | Alias    | Description             |
